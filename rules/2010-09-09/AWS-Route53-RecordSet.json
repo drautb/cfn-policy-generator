@@ -1,0 +1,7 @@
+{
+  "core": [
+    "route53:ChangeResourceRecordSets",
+    "route53:Get*",
+    "route53:List*"
+  ]
+}

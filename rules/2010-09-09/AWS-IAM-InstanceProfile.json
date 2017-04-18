@@ -1,0 +1,21 @@
+{
+  "core": [
+    "iam:CreateInstanceProfile",
+    "iam:DeleteInstanceProfile",
+    "iam:GetInstanceProfile",
+    "iam:ListInstanceProfiles"
+  ],
+  "extended": {
+    "Properties": {
+      "extended": {
+        "Roles": {
+          "core": [
+            "iam:AddRoleToInstanceProfile",
+            "iam:ListInstanceProfilesForRole",
+            "iam:RemoveRoleFromInstanceProfile"
+          ]
+        }
+      }
+    }
+  }
+}

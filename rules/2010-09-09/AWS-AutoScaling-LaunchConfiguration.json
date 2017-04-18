@@ -1,0 +1,7 @@
+{
+  "core": [
+    "autoscaling:CreateLaunchConfiguration",
+    "autoscaling:DeleteLaunchConfiguration",
+    "autoscaling:Describe*"
+  ]
+}

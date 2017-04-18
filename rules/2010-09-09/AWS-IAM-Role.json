@@ -1,0 +1,34 @@
+{
+  "core": [
+    "iam:CreateRole",
+    "iam:DeleteRole",
+    "iam:GetRole",
+    "iam:ListRoles"
+  ],
+  "extended": {
+    "Properties": {
+      "extended": {
+        "AssumeRolePolicyDocument": {
+          "core": [
+            "iam:UpdateAssumeRolePolicy"
+          ]
+        },
+        "ManagedPolicyArns": {
+          "core": [
+            "iam:AttachRolePolicy",
+            "iam:DetachRolePolicy",
+            "iam:ListAttachedRolePolicies"
+          ]
+        },
+        "Policies": {
+          "core": [
+            "iam:DeleteRolePolicy",
+            "iam:GetRolePolicy",
+            "iam:ListRolePolicies",
+            "iam:PutRolePolicy"
+          ]
+        }
+      }
+    }
+  }
+}

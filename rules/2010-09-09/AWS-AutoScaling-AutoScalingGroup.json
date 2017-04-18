@@ -1,0 +1,56 @@
+{
+  "core": [
+    "autoscaling:AttachInstances",
+    "autoscaling:CreateAutoScalingGroup",
+    "autoscaling:DeleteAutoScalingGroup",
+    "autoscaling:Describe*",
+    "autoscaling:DetachInstances",
+    "autoscaling:SetDesiredCapacity",
+    "autoscaling:SetInstanceHealth",
+    "autoscaling:TerminateInstanceInAutoScalingGroup",
+    "autoscaling:UpdateAutoScalingGroup"
+  ],
+  "extended": {
+    "Properties": {
+      "extended": {
+        "InstanceId": {
+          "core": [
+            "autoscaling:CreateLaunchConfiguration",
+            "autoscaling:DeleteLaunchConfiguration",
+            "autoscaling:SetInstanceProtection"
+          ]
+        },
+        "LoadBalancerNames": {
+          "core": [
+            "autoscaling:AttachLoadBalancers",
+            "autoscaling:DetachLoadBalancers"
+          ]
+        },
+        "MetricsCollection": {
+          "core": [
+            "autoscaling:DisableMetricsCollection",
+            "autoscaling:EnableMetricsCollection"
+          ]
+        },
+        "NotificationConfigurations": {
+          "core": [
+            "autoscaling:PutNotificationConfiguration",
+            "autoscaling:DeleteNotificationConfiguration"
+          ]
+        },
+        "Tags": {
+          "core": [
+            "autoscaling:CreateOrUpdateTags",
+            "autoscaling:DeleteTags"
+          ]
+        },
+        "TargetGroupARNs": {
+          "core": [
+            "autoscaling:AttachLoadBalancers",
+            "autoscaling:DetachLoadBalancers"
+          ]
+        }
+      }
+    }
+  }
+}

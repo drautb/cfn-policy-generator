@@ -1,0 +1,8 @@
+{
+  "core": [
+    "autoscaling:DeletePolicy",
+    "autoscaling:Describe*",
+    "autoscaling:ExecutePolicy",
+    "autoscaling:PutScalingPolicy"
+  ]
+}

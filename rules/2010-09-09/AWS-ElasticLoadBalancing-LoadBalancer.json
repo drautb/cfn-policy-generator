@@ -1,0 +1,91 @@
+{
+  "core": [
+    "elasticloadbalancing:CreateLoadBalancer",
+    "elasticloadbalancing:DeleteLoadBalancer",
+    "elasticloadbalancing:DescribeLoadBalancers",
+    "elasticloadbalancing:DescribeLoadBalancerAttributes",
+    "elasticloadbalancing:DisableAvailabilityZonesForLoadBalancer",
+    "elasticloadbalancing:EnableAvailabilityZonesForLoadBalancer",
+    "elasticloadbalancing:ModifyLoadBalancerAttributes"
+  ],
+  "extended": {
+    "Properties": {
+      "core": [],
+      "extended": {
+        "AppCookieStickinessPolicy": {
+          "core": [
+            "elasticloadbalancing:CreateAppCookieStickinessPolicy"
+          ]
+        },
+        "HealthCheck": {
+          "core": [
+            "elasticloadbalancing:ConfigureHealthCheck"
+          ]
+        },
+        "Instances": {
+          "core": [
+            "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+            "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+            "elasticloadbalancing:DescribeInstanceHealth"
+          ]
+        },
+        "LBCookieStickinessPolicy": {
+          "core": [
+            "elasticloadbalancing:CreateLBCookieStickinessPolicy"
+          ]
+        },
+        "Listeners": {
+          "core": [
+            "elasticloadbalancing:CreateListener",
+            "elasticloadbalancing:CreateLoadBalancerListeners",
+            "elasticloadbalancing:DeleteListener",
+            "elasticloadbalancing:DeleteLoadBalancerListeners",
+            "elasticloadbalancing:DescribeListeners",
+            "elasticloadbalancing:ModifyListener"
+          ],
+          "extended": {
+            "PolicyNames": {
+              "core": [
+                "elasticloadbalancing:SetLoadBalancerPoliciesOfListener"
+              ]
+            },
+            "SSLCertificateId": {
+              "core": [
+                "elasticloadbalancing:SetLoadBalancerListenerSSLCertificate"
+              ]
+            }
+          }
+        },
+        "Policies": {
+          "core": [
+            "elasticloadbalancing:CreateLoadBalancerPolicy",
+            "elasticloadbalancing:DeleteLoadBalancerPolicy",
+            "elasticloadbalancing:DescribeLoadBalancerPolicies",
+            "elasticloadbalancing:DescribeSSLPolicies",
+            "elasticloadbalancing"
+          ]
+        },
+        "SecurityGroups": {
+          "core": [
+            "elasticloadbalancing:ApplySecurityGroupsToLoadBalancer",
+            "elasticloadbalancing:SetSecurityGroups"
+          ]
+        },
+        "Subnets": {
+          "core": [
+            "elasticloadbalancing:SetSubnets",
+            "elasticloadbalancing:AttachLoadBalancerToSubnets",
+            "elasticloadbalancing:DetachLoadBalancerFromSubnets"
+          ]
+        },
+        "Tags": {
+          "core": [
+            "elasticloadbalancing:AddTags",
+            "elasticloadbalancing:DescribeTags",
+            "elasticloadbalancing:RemoveTags"
+          ]
+        }
+      }
+    }
+  }
+}

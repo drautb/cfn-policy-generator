@@ -1,0 +1,10 @@
+{
+  "core": [
+    "cloudwatch:List*",
+    "cloudwatch:Describe*",
+    "cloudwatch:DeleteAlarms",
+    "cloudwatch:PutMetricAlarm",
+    "cloudwatch:DisableAlarmActions",
+    "cloudwatch:EnableAlarmActions"
+  ]
+}

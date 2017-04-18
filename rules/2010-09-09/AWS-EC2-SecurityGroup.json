@@ -1,0 +1,39 @@
+{
+  "core": [
+    "ec2:CreateSecurityGroup",
+    "ec2:DeleteSecurityGroup",
+    "ec2:DescribeSecurityGroups",
+    "ec2:DescribeStaleSecurityGroups"
+  ],
+  "extended": {
+    "Properties": {
+      "extended": {
+        "SecurityGroupEgress": {
+          "core": [
+            "ec2:AuthorizeSecurityGroupEgress",
+            "ec2:RevokeSecurityGroupEgress"
+          ]
+        },
+        "SecurityGroupIngress": {
+          "core": [
+            "ec2:AuthorizeSecurityGroupIngress",
+            "ec2:RevokeSecurityGroupIngress"
+          ]
+        },
+        "Tags": {
+          "core": [
+            "ec2:CreateTags",
+            "ec2:DeleteTags",
+            "ec2:DescribeTags"
+          ]
+        },
+        "VpcId": {
+          "core": [
+            "ec2:DescribeVpcs",
+            "ec2:DescribeVpcAttribute"
+          ]
+        }
+      }
+    }
+  }
+}
