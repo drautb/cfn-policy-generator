@@ -1,6 +1,7 @@
 #lang racket
 
 (require json
+         yaml
          web-server/servlet
          "policy-generator.rkt")
 
@@ -74,6 +75,15 @@
                             (define body-json (string->jsexpr body-str))
                             (let ([policy-hash (generate-policy body-json)])
                               (good-response policy-hash)))]
+                         [(equal? content-type APPLICATION/X-YAML)
+                          (begin
+                            (define body-yaml (string->yaml body-str))
+                            (if (hash? body-yaml)
+                                (let ([policy-hash (generate-policy body-yaml)])
+                                  (good-response policy-hash))
+                                (begin
+                                  (log-warning "Parsed YAML is not a map! yaml=~a" body-yaml)
+                                  BAD-REQUEST)))]
                          [else
                           (begin
                             (log-warning "Unrecognized content-type! content-type=~a" content-type)
@@ -145,6 +155,12 @@
       (define r (handle-request (build-request #"POST"
                                                (list (make-header CONTENT-TYPE #"application/json"))
                                                #"hey")))
+      (check-eq? (response-code r) 400))
+
+    (test-case "Should return 400 if content-type is yaml, but body is not a map"
+      (define r (handle-request (build-request #"POST"
+                                               (list (make-header CONTENT-TYPE #"application/x-yaml"))
+                                               #"asdf")))
       (check-eq? (response-code r) 400))
 
     )
