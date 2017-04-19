@@ -20,7 +20,6 @@
   (define body-json (with-input-from-bytes (request-post-data/raw request) (λ () (read-json))))
   (cond [(equal? (request-method request) #"POST")
          (let ([policy-hash (generate-policy body-json)])
-           (log-info "HASH: ~a~n" policy-hash)
            (response 200
                      #"Ok"
                      (current-seconds)

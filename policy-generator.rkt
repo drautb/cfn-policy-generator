@@ -247,5 +247,4 @@
 
 
 (define (generate-policy template-hash)
-  (log-info "Generating policy for template.")
   (build-policy RULES template-hash))
