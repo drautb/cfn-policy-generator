@@ -19,63 +19,115 @@
 
 (define RULES (load-rules))
 
+;; structs
+;; Used to make sorting/deduping actions a bit easier.
+(struct action (service-name action-name) #:transparent)
+(struct action-group (service-name action-list) #:transparent)
 
+(define (make-action str)
+  (let ([pieces (string-split str ":")])
+    (action (first pieces) (second pieces))))
+
+(module+ test
+  (check-equal? (make-action "ec2:LaunchInstance")
+                (action "ec2" "LaunchInstance")))
+
+;; make-policy - (listof hash) -> hash
+;; wraps a list of stateents in a hash that represents a policy document.
 (define (make-policy statements)
   (hash 'Version "2012-10-17"
         'Statement statements))
 
+;; make-statement - (listof string) -> hash
+;; wraps a list of action strings in a hash that represents a policy statement.
 (define (make-statement actions)
   (hash 'Effect "Allow"
         'Action actions
         'Resource "*"))
 
-;; get-actions : hash hash -> hash
+;; get-resources - hash -> hash
+;; Given a template, this extracts the resources hash from the template if one exists,
+;; otherwise it returns an empty hash.
+(define (get-resources template)
+  (if (hash-has-key? template 'Resources)
+      (hash-ref template 'Resources)
+      (begin
+        (log-info "Template doesn't have a 'Resources' key.")
+        (hash))))
+
+;; get-actions : hash hash -> (listof action)
 ;; Takes a hash representing the rule, and and the resource definition, and returns a list of actions.
 ;; Called recursively on subsets of the rule and resource for additional permissions.
 (define (get-actions rule resource-def)
-  (flatten
-   (append (if (hash-has-key? rule 'core)
-               (hash-ref rule 'core)
-               empty)
-           (if (hash-has-key? rule 'extended)
-               (if (hash? resource-def)
-                   (hash-map resource-def
-                             (λ (resource-key resource-def)
-                               (define extended-rule (hash-ref rule 'extended))
-                               (if (hash-has-key? extended-rule resource-key)
-                                   (flatten (get-actions (hash-ref extended-rule resource-key)
-                                                         resource-def))
-                                   empty)))
-                   (flatten (map (λ (def)
-                                   (get-actions rule def))
-                                 resource-def)))
-               empty))))
+  (append (if (hash-has-key? rule 'core)
+              (map make-action (hash-ref rule 'core))
+              empty)
+          (if (hash-has-key? rule 'extended)
+              (if (hash? resource-def)
+                  (hash-map resource-def
+                            (λ (resource-key resource-def)
+                              (define extended-rule (hash-ref rule 'extended))
+                              (if (hash-has-key? extended-rule resource-key)
+                                  (get-actions (hash-ref extended-rule resource-key)
+                                               resource-def)
+                                  empty)))
+                  (map (λ (def)
+                         (get-actions rule def))
+                       resource-def))
+              empty)))
+
+;; get-all-actions : hash hash -> (listof action)
+;; Returns a list of _all_ actions needed by the tempate based on the given rules.
+(define (get-all-actions rules resources)
+  (remove-duplicates
+   (flatten
+    (hash-map resources
+              (λ (resource-name resource-def)
+                (define resource-type
+                  (string-replace (hash-ref resource-def 'Type) "::" "-"))
+                (if (hash-has-key? rules resource-type)
+                    (remove-duplicates
+                     (get-actions (hash-ref rules resource-type)
+                                  resource-def))
+
+                    (begin
+                      (log-warning "No rules found for resource type! resource=~a" resource-type)
+                      empty)))))))
+
+;; consolidate--actions : (listof action) -> (listof action-group)
+;; Collapses a single mixed list of actions into a list of action-groups,
+;; each containing actions that pertain to a single service.
+(define (consolidate-actions action-list)
+  (define service-names
+    (remove-duplicates
+     (map (λ (action)
+            (action-service-name action))
+          action-list)))
+  (for/list ([s service-names])
+    (action-group s (sort (map (λ (action)
+                                 (string-append (action-service-name action) ":"
+                                                (action-action-name action)))
+                               (filter (λ (action)
+                                         (equal? (action-service-name action) s))
+                                       action-list))
+                          string<?))))
+
+(module+ test
+  (check-equal? (consolidate-actions (list (action "ec2" "one")
+                                           (action "ec2" "two")
+                                           (action "s3" "three")))
+                (list (action-group "ec2" (list "ec2:one" "ec2:two"))
+                      (action-group "s3" (list "s3:three")))))
 
 ;; build-policy : hash hash -> hash
 ;; takes a hash representing a CFN template, returns a hash representing a policy.
 (define (build-policy rules template)
-  (define resources
-    (if (hash-has-key? template 'Resources)
-        (hash-ref template 'Resources)
-        (begin
-          (log-info "Template doesn't have a 'Resources' key.")
-          (hash))))
-  (make-policy
-   (remove-duplicates
-    (flatten
-     (hash-map resources
-               (λ (resource-name resource-def)
-                 (define resource-type
-                   (string-replace (hash-ref resource-def 'Type) "::" "-"))
-                 (if (hash-has-key? rules resource-type)
-                     (let ([actions (remove-duplicates
-                                     (get-actions (hash-ref rules resource-type)
-                                                  resource-def))])
-                       (if (empty? actions) actions
-                           (make-statement actions)))
-                     (begin
-                       (log-warning "No rules found for resource type! resource=~a" resource-type)
-                       empty))))))))
+  (define resources (get-resources template))
+  (define action-list (get-all-actions rules resources))
+  (define action-groups (consolidate-actions action-list))
+  (make-policy (map (λ (action-group)
+                      (make-statement (action-group-action-list action-group)))
+                    action-groups)))
 
 (module+ test
   (require rackunit)
@@ -85,8 +137,8 @@
   (define TEST-RULES
     (hash "AWS-Service-ResourceName"
           (hash 'core
-                (list "prefix:permission1"
-                      "prefix:permission2")
+                (list "prefix:permission2"
+                      "prefix:permission1")
                 'extended
                 (hash 'Properties
                       (hash 'core
@@ -94,8 +146,8 @@
                             'extended
                             (hash 'SomeServiceProperty
                                   (hash 'core
-                                        (list "prefix:permission4"
-                                              "prefix:permission5"))))))
+                                        (list "prefix:permission5"
+                                              "prefix:permission4"))))))
           "AWS-Service-OtherResourceName"
           (hash 'core
                 (list "other:other1"
@@ -230,20 +282,18 @@
                                              "prefix:permission2")))))
 
   ;; Should consolidate permissions for the same service into a single statement
-  #;(check-equal? (build-policy
-                   TEST-RULES
-                   (hash 'Resources
-                         (hash "first"
-                               (hash 'Type "AWS::Service::ResourceName")
-                               "second"
-                               (hash 'Type "AWS::Service::ResourceName"
-                                     'Properties (hash)))))
-                  (make-policy
-                   (list (make-statement (list "prefix:permission1"
-                                               "prefix:permission2"
-                                               "prefix:permission3")))))
-
-  )
+  (check-equal? (build-policy
+                 TEST-RULES
+                 (hash 'Resources
+                       (hash "first"
+                             (hash 'Type "AWS::Service::ResourceName")
+                             "second"
+                             (hash 'Type "AWS::Service::ResourceName"
+                                   'Properties (hash)))))
+                (make-policy
+                 (list (make-statement (list "prefix:permission1"
+                                             "prefix:permission2"
+                                             "prefix:permission3"))))))
 
 
 (define (generate-policy template-hash)
