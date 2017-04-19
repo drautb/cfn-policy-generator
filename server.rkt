@@ -5,13 +5,11 @@
          web-server/servlet-env
          "policy-generator.rkt")
 
-(define port (make-parameter 8080))
-
-(command-line
- #:program "cfn-policy-generator"
- #:once-each
- [("-p" "--port") listen-on-port "Port to listen on"
-  (port (string->number listen-on-port))])
+(define PORT
+  (let ([port (environment-variables-ref (current-environment-variables) #"PORT")])
+    (if port
+        (string->number (bytes->string/utf-8 port))
+        5000)))
 
 (define APPLICATION/JSON-MIME-TYPE  #"application/json; charset=utf-8")
 
@@ -39,6 +37,6 @@
                    (λ (op) op))]))
 
 (serve/servlet handle
-               #:port (port)
+               #:port PORT
                #:servlet-path "/cloudformation/2010-09-09/template"
                #:command-line? #t)
