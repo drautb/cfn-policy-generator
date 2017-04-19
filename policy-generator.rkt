@@ -3,6 +3,10 @@
 (require json
          racket/runtime-path)
 
+(module+ test
+  (require rackunit
+           rackunit/text-ui))
+
 ;; generate-policy is the public API
 (provide generate-policy)
 
@@ -24,6 +28,18 @@
      (with-input-from-file resource-formats-path
        (λ () (read-json))))))
 
+;; hash-ref* : hash? symbol? -> any
+;; Helper hash-ref to check both the symbol and string version of the key.
+(define (hash-ref* data key)
+  (hash-ref data key (λ () (hash-ref data (symbol->string key)))))
+
+(module+ test
+  (define-test-suite test-hash-ref*
+    (test-case "hash-ref* should find a hash value by symbol or string"
+      (check-equal? (hash-ref* (hash "key" "value") 'key) "value")))
+
+  (run-tests test-hash-ref*))
+
 ;; structs
 ;; Used to make sorting/deduping actions a bit easier.
 (struct action (service-name action-name) #:transparent)
@@ -34,8 +50,12 @@
     (action (first pieces) (second pieces))))
 
 (module+ test
-  (check-equal? (make-action "ec2:LaunchInstance")
-                (action "ec2" "LaunchInstance")))
+  (define-test-suite test-make-action
+    (test-case "make-action should work"
+      (check-equal? (make-action "ec2:LaunchInstance")
+                    (action "ec2" "LaunchInstance"))))
+
+  (run-tests test-make-action))
 
 ;; make-policy - (listof hash) -> hash
 ;; wraps a list of stateents in a hash that represents a policy document.
@@ -55,7 +75,7 @@
 ;; otherwise it returns an empty hash.
 (define (get-resources template)
   (if (hash-has-key? template 'Resources)
-      (hash-ref template 'Resources)
+      (hash-ref* template 'Resources)
       (begin
         (log-info "Template doesn't have a 'Resources' key.")
         (hash))))
@@ -65,15 +85,15 @@
 ;; Called recursively on subsets of the rule and resource for additional permissions.
 (define (get-actions rule resource-def)
   (append (if (hash-has-key? rule 'core)
-              (map make-action (hash-ref rule 'core))
+              (map make-action (hash-ref* rule 'core))
               empty)
           (if (hash-has-key? rule 'extended)
               (if (hash? resource-def)
                   (hash-map resource-def
                             (λ (resource-key resource-def)
-                              (define extended-rule (hash-ref rule 'extended))
+                              (define extended-rule (hash-ref* rule 'extended))
                               (if (hash-has-key? extended-rule resource-key)
-                                  (get-actions (hash-ref extended-rule resource-key)
+                                  (get-actions (hash-ref* extended-rule resource-key)
                                                resource-def)
                                   empty)))
                   (map (λ (def)
@@ -89,10 +109,10 @@
     (hash-map resources
               (λ (resource-name resource-def)
                 (define resource-type
-                  (string-replace (hash-ref resource-def 'Type) "::" "-"))
+                  (string-replace (hash-ref* resource-def 'Type) "::" "-"))
                 (if (hash-has-key? rules resource-type)
                     (remove-duplicates
-                     (get-actions (hash-ref rules resource-type)
+                     (get-actions (hash-ref* rules resource-type)
                                   resource-def))
 
                     (begin
@@ -133,15 +153,12 @@
   (make-policy
    (map (λ (action-group)
           (make-statement (action-group-action-list action-group)
-                          (hash-ref resource-formats
-                                    (string->symbol
-                                     (action-group-service-name action-group)))))
+                          (hash-ref* resource-formats
+                                     (string->symbol
+                                      (action-group-service-name action-group)))))
         action-groups)))
 
 (module+ test
-  (require rackunit
-           rackunit/text-ui)
-
   (define EMPTY-POLICY (make-policy empty))
 
   (define TEST-RULES
