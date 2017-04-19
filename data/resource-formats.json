@@ -32,7 +32,7 @@
   "dms": "arn:aws:dms:<region>:<account>:<resource>",
   "ds": "arn:aws:ds:<region>:<account_ID>:<directory-id>",
   "dynamodb": "arn:aws:dynamodb:<region>:<accountID>:table/<tablename>",
-  "ec2": "*",
+  "ec2": "arn:aws:ec2:<region>:<account>:<resourceType>/<resourcePath>",
   "ecr": "arn:aws:ecr:<region>:<account_ID>:repository/<repository_name>",
   "ecs": "arn:aws:ecs:<region>:<account_ID>:<resource_type>/<relative_ID>",
   "elasticache": "*",
