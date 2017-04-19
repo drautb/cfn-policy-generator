@@ -3,21 +3,26 @@
 (require json
          racket/runtime-path)
 
-
 ;; generate-policy is the public API
 (provide generate-policy)
 
-;; Need to load the rule files
-(define-runtime-path rules-path "rules/2010-09-09")
+;; Load JSON data
+(define-runtime-path rules-path "data/rules/2010-09-09")
+(define-runtime-path resource-formats-path "data/resource-formats.json")
 
-(define (load-rules)
-  (log-info "Loading rules from path. path=~a" rules-path)
-  (for/hash ([path (in-directory rules-path)])
-    (log-info "Loading rules for resource. file=~a" path)
-    (values (path->string (path-replace-extension (file-name-from-path path) ""))
-            (with-input-from-file path (λ () (read-json))))))
+(define RULES
+  ((λ ()
+     (log-info "Loading rules from path. path=~a" rules-path)
+     (for/hash ([path (in-directory rules-path)])
+       (log-info "Loading rules for resource. file=~a" path)
+       (values (path->string (path-replace-extension (file-name-from-path path) ""))
+               (with-input-from-file path (λ () (read-json))))))))
 
-(define RULES (load-rules))
+(define RESOURCE-FORMATS
+  ((λ ()
+     (log-info "Loading resource formats. file=~a" resource-formats-path)
+     (with-input-from-file resource-formats-path
+       (λ () (read-json))))))
 
 ;; structs
 ;; Used to make sorting/deduping actions a bit easier.
@@ -40,10 +45,10 @@
 
 ;; make-statement - (listof string) -> hash
 ;; wraps a list of action strings in a hash that represents a policy statement.
-(define (make-statement actions)
+(define (make-statement actions resource)
   (hash 'Effect "Allow"
         'Action actions
-        'Resource "*"))
+        'Resource resource))
 
 ;; get-resources - hash -> hash
 ;; Given a template, this extracts the resources hash from the template if one exists,
@@ -121,13 +126,17 @@
 
 ;; build-policy : hash hash -> hash
 ;; takes a hash representing a CFN template, returns a hash representing a policy.
-(define (build-policy rules template)
+(define (build-policy rules resource-formats template)
   (define resources (get-resources template))
   (define action-list (get-all-actions rules resources))
   (define action-groups (consolidate-actions action-list))
-  (make-policy (map (λ (action-group)
-                      (make-statement (action-group-action-list action-group)))
-                    action-groups)))
+  (make-policy
+   (map (λ (action-group)
+          (make-statement (action-group-action-list action-group)
+                          (hash-ref resource-formats
+                                    (string->symbol
+                                     (action-group-service-name action-group)))))
+        action-groups)))
 
 (module+ test
   (require rackunit)
@@ -169,132 +178,126 @@
           "AWS-Service-EmptyResource"
           (hash)))
 
+  (define TEST-RESOURCE-FORMATS
+    (hash 'prefix "prefix-resource"
+          'other "other-resource"
+          'list "list-resource"))
+
+  (define (run-test template expected-policy)
+    (check-equal? (build-policy TEST-RULES TEST-RESOURCE-FORMATS template)
+                  expected-policy))
+
   ;; Should build an empty policy if there are no resources in the template.
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash))
-                EMPTY-POLICY)
+  (run-test (hash) EMPTY-POLICY)
 
   ;; Should build an empty policy if the resource type isn't recognized.
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "resourceName"
-                             (hash 'Type "bogus"))))
-                EMPTY-POLICY)
+  (run-test (hash 'Resources
+                  (hash "resourceName"
+                        (hash 'Type "bogus")))
+            EMPTY-POLICY)
 
   ;; Should build an empty policy if the resource has no core rules.
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "resourceName"
-                             (hash 'Type "AWS::Service::EmptyResource"))))
-                EMPTY-POLICY)
+  (run-test (hash 'Resources
+                  (hash "resourceName"
+                        (hash 'Type "AWS::Service::EmptyResource")))
+            EMPTY-POLICY)
 
   ;; Should build a policy with the core permissions.
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "resourceName"
-                             (hash 'Type "AWS::Service::ResourceName"))))
-                (make-policy
-                 (list (make-statement (list "prefix:permission1"
-                                             "prefix:permission2")))))
-
+  (run-test (hash 'Resources
+                  (hash "resourceName"
+                        (hash 'Type "AWS::Service::ResourceName")))
+            (make-policy
+             (list (make-statement (list "prefix:permission1"
+                                         "prefix:permission2")
+                                   "prefix-resource"))))
 
   ;; Should build a policy with extra core permissions from an extended level
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "resourceName"
-                             (hash 'Type "AWS::Service::ResourceName"
-                                   'Properties (hash)))))
-                (make-policy
-                 (list (make-statement (list "prefix:permission1"
-                                             "prefix:permission2"
-                                             "prefix:permission3")))))
+  (run-test (hash 'Resources
+                  (hash "resourceName"
+                        (hash 'Type "AWS::Service::ResourceName"
+                              'Properties (hash))))
+            (make-policy
+             (list (make-statement (list "prefix:permission1"
+                                         "prefix:permission2"
+                                         "prefix:permission3")
+                                   "prefix-resource"))))
 
   ;; Should build a policy with multiple levels of extended permissions.
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "resourceName"
-                             (hash 'Type "AWS::Service::ResourceName"
-                                   'Properties (hash 'SomeServiceProperty (hash))))))
-                (make-policy
-                 (list (make-statement (list "prefix:permission1"
-                                             "prefix:permission2"
-                                             "prefix:permission3"
-                                             "prefix:permission4"
-                                             "prefix:permission5")))))
+  (run-test (hash 'Resources
+                  (hash "resourceName"
+                        (hash 'Type "AWS::Service::ResourceName"
+                              'Properties (hash 'SomeServiceProperty (hash)))))
+            (make-policy
+             (list (make-statement (list "prefix:permission1"
+                                         "prefix:permission2"
+                                         "prefix:permission3"
+                                         "prefix:permission4"
+                                         "prefix:permission5")
+                                   "prefix-resource"))))
 
   ;; Should build a policy with multiple statements for multiple resources.
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "firstResource"
-                             (hash 'Type "AWS::Service::ResourceName")
-                             "secondResource"
-                             (hash 'Type "AWS::Service::OtherResourceName"))))
-                (make-policy
-                 (list (make-statement (list "prefix:permission1"
-                                             "prefix:permission2"))
-                       (make-statement (list "other:other1"
-                                             "other:other2")))))
+  (run-test (hash 'Resources
+                  (hash "firstResource"
+                        (hash 'Type "AWS::Service::ResourceName")
+                        "secondResource"
+                        (hash 'Type "AWS::Service::OtherResourceName")))
+            (make-policy
+             (list (make-statement (list "prefix:permission1"
+                                         "prefix:permission2")
+                                   "prefix-resource")
+                   (make-statement (list "other:other1"
+                                         "other:other2")
+                                   "other-resource"))))
 
   ;; Should build a policy correctly for resources that contain lists of items.
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "resourceName"
-                             (hash 'Type "AWS::Service::ListResource"
-                                   'Properties (list (hash 'Name "")
-                                                     (hash 'Something ""))))))
-                (make-policy
-                 (list (make-statement (list "list:list1"
-                                             "list:list2"
-                                             "list:list3"
-                                             "list:list4")))))
+  (run-test (hash 'Resources
+                  (hash "resourceName"
+                        (hash 'Type "AWS::Service::ListResource"
+                              'Properties (list (hash 'Name "")
+                                                (hash 'Something "")))))
+            (make-policy
+             (list (make-statement (list "list:list1"
+                                         "list:list2"
+                                         "list:list3"
+                                         "list:list4")
+                                   "list-resource"))))
 
   ;; Should not duplicate actions within a list
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "resourceName"
-                             (hash 'Type "AWS::Service::ListResource"
-                                   'Properties (list (hash 'Name "")
-                                                     (hash 'Name ""))))))
-                (make-policy
-                 (list (make-statement (list "list:list1"
-                                             "list:list2"
-                                             "list:list3")))))
+  (run-test (hash 'Resources
+                  (hash "resourceName"
+                        (hash 'Type "AWS::Service::ListResource"
+                              'Properties (list (hash 'Name "")
+                                                (hash 'Name "")))))
+            (make-policy
+             (list (make-statement (list "list:list1"
+                                         "list:list2"
+                                         "list:list3")
+                                   "list-resource"))))
 
   ;; Should not duplicate statements within a list
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "first"
-                             (hash 'Type "AWS::Service::ResourceName")
-                             "second"
-                             (hash 'Type "AWS::Service::ResourceName"))))
-                (make-policy
-                 (list (make-statement (list "prefix:permission1"
-                                             "prefix:permission2")))))
+  (run-test (hash 'Resources
+                  (hash "first"
+                        (hash 'Type "AWS::Service::ResourceName")
+                        "second"
+                        (hash 'Type "AWS::Service::ResourceName")))
+            (make-policy
+             (list (make-statement (list "prefix:permission1"
+                                         "prefix:permission2")
+                                   "prefix-resource"))))
 
   ;; Should consolidate permissions for the same service into a single statement
-  (check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "first"
-                             (hash 'Type "AWS::Service::ResourceName")
-                             "second"
-                             (hash 'Type "AWS::Service::ResourceName"
-                                   'Properties (hash)))))
-                (make-policy
-                 (list (make-statement (list "prefix:permission1"
-                                             "prefix:permission2"
-                                             "prefix:permission3"))))))
+  (run-test (hash 'Resources
+                  (hash "first"
+                        (hash 'Type "AWS::Service::ResourceName")
+                        "second"
+                        (hash 'Type "AWS::Service::ResourceName"
+                              'Properties (hash))))
+            (make-policy
+             (list (make-statement (list "prefix:permission1"
+                                         "prefix:permission2"
+                                         "prefix:permission3")
+                                   "prefix-resource")))))
 
 
 (define (generate-policy template-hash)
-  (build-policy RULES template-hash))
+  (build-policy RULES RESOURCE-FORMATS template-hash))
