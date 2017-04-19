@@ -36,6 +36,7 @@
                    empty
                    (λ (op) op))]))
 
+(log-info "Starting server on port=~a" PORT)
 (serve/servlet handle
                #:port PORT
                #:servlet-path "/cloudformation/2010-09-09/template"
