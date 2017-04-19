@@ -39,5 +39,6 @@
 (log-info "Starting server on port=~a" PORT)
 (serve/servlet handle
                #:port PORT
+               #:listen-ip #f
                #:servlet-path "/cloudformation/2010-09-09/template"
                #:command-line? #t)
