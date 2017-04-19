@@ -1,0 +1,13 @@
+{
+  "extended": {
+    "Properties": {
+      "extended": {
+        "Handle": {
+          "core": [
+            "cloudformation:SignalResource"
+          ]
+        }
+      }
+    }
+  }
+}

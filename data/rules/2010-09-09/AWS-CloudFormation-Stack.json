@@ -1,0 +1,15 @@
+{
+  "core": [
+    "cloudformation:CancelUpdateStack",
+    "cloudformation:ContinueUpdateRollback",
+    "cloudformation:CreateChangeSet",
+    "cloudformation:CreateStack",
+    "cloudformation:DeleteStack",
+    "cloudformation:Describe*",
+    "cloudformation:ExecuteChangeSet",
+    "cloudformation:Get*",
+    "cloudformation:List*",
+    "cloudformation:SetStackPolicy",
+    "cloudformation:UpdateStack"
+  ]
+}
