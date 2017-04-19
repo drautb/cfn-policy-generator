@@ -1,0 +1,7 @@
+{
+  "core": [
+    "ec2:AuthorizeSecurityGroupEgress",
+    "ec2:DescribeSecurityGroups",
+    "ec2:RevokeSecurityGroupEgress"
+  ]
+}

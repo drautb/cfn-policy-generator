@@ -1,0 +1,34 @@
+{
+  "core": [
+    "ec2:CreateNetworkInterface",
+    "ec2:DeleteNetworkInterface",
+    "ec2:DescribeNetworkInterfaces",
+    "ec2:DescribeNetworkInterfaceAttribute",
+    "ec2:ModifyNetworkInterfaceAttribute",
+    "ec2:ResetNetworkInterfaceAttribute"
+  ],
+  "extended": {
+    "Type": "AWS::EC2::NetworkInterface",
+    "Properties": {
+      "extended": {
+        "GroupSet": {
+          "core": [
+            "ec2:DescribeSecurityGroups"
+          ]
+        },
+        "SubnetId": {
+          "core": [
+            "ec2:DescribeSubnets"
+          ]
+        },
+        "Tags": {
+          "core": [
+            "ec2:CreateTags",
+            "ec2:DeleteTags",
+            "ec2:DescribeTags"
+          ]
+        }
+      }
+    }
+  }
+}

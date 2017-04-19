@@ -1,0 +1,18 @@
+{
+  "core": [
+    "ec2:CreateDhcpOptions",
+    "ec2:DeleteDhcpOptions",
+    "ec2:DescribeDhcpOptions"
+  ],
+  "extended": {
+    "Properties": {
+      "Tags": {
+        "core": [
+          "ec2:CreateTags",
+          "ec2:DeleteTags",
+          "ec2:DescribeTags"
+        ]
+      }
+    }
+  }
+}
