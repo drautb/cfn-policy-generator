@@ -109,7 +109,10 @@
     (hash-map resources
               (λ (resource-name resource-def)
                 (define resource-type
-                  (string-replace (hash-ref* resource-def 'Type) "::" "-"))
+                  (let ([raw-type (hash-ref* resource-def 'Type)])
+                    (if (string-prefix? raw-type "Custom::")
+                        "AWS-CloudFormation-CustomResource"
+                        (string-replace raw-type "::" "-"))))
                 (if (hash-has-key? rules resource-type)
                     (remove-duplicates
                      (get-actions (hash-ref* rules resource-type)
@@ -194,12 +197,16 @@
                                         (list "list:list4"))))))
 
           "AWS-Service-EmptyResource"
-          (hash)))
+          (hash)
+
+          "AWS-CloudFormation-CustomResource"
+          (hash 'core (list "custom:custom1"))))
 
   (define TEST-RESOURCE-FORMATS
     (hash 'prefix "prefix-resource"
           'other "other-resource"
-          'list "list-resource"))
+          'list "list-resource"
+          'custom "*"))
 
   (define (run-test template expected-policy)
     (check-equal? (build-policy TEST-RULES TEST-RESOURCE-FORMATS template)
@@ -316,7 +323,14 @@
                  (list (make-statement (list "prefix:permission1"
                                              "prefix:permission2"
                                              "prefix:permission3")
-                                       "prefix-resource"))))))
+                                       "prefix-resource")))))
+    (test-case "Should use the CFN custom resource rules for resources that start with 'Custom::'"
+      (run-test (hash 'Resources
+                      (hash "first"
+                            (hash 'Type "Custom::myResource")))
+                (make-policy
+                 (list (make-statement (list "custom:custom1")
+                                       "*"))))))
 
   (run-tests test-policy-generation))
 

@@ -1,0 +1,6 @@
+{
+  "core": [
+    "lambda:InvokeFunction",
+    "sns:Publish"
+  ]
+}
