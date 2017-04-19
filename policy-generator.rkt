@@ -3,8 +3,11 @@
 (require json
          racket/runtime-path)
 
+
+;; generate-policy is the public API
 (provide generate-policy)
 
+;; Need to load the rule files
 (define-runtime-path rules-path "rules/2010-09-09")
 
 (define (load-rules)
@@ -15,6 +18,16 @@
             (with-input-from-file path (λ () (read-json))))))
 
 (define RULES (load-rules))
+
+
+(define (make-policy statements)
+  (hash 'Version "2012-10-17"
+        'Statement statements))
+
+(define (make-statement actions)
+  (hash 'Effect "Allow"
+        'Action actions
+        'Resource "*"))
 
 ;; get-actions : hash hash -> hash
 ;; Takes a hash representing the rule, and and the resource definition, and returns a list of actions.
@@ -47,39 +60,27 @@
         (begin
           (log-info "Template doesn't have a 'Resources' key.")
           (hash))))
-  (hash 'Version "2012-10-17"
-        'Statement
-        (remove-duplicates
-         (flatten
-          (hash-map resources
-                    (λ (resource-name resource-def)
-                      (define resource-type
-                        (string-replace (hash-ref resource-def 'Type) "::" "-"))
-                      (if (hash-has-key? rules resource-type)
-                          (let ([actions (remove-duplicates
-                                          (get-actions (hash-ref rules resource-type)
-                                                       resource-def))])
-                            (if (empty? actions) actions
-                                (hash 'Effect "Allow"
-                                      'Action actions
-                                      'Resource "*")))
-                          (begin
-                            (log-warning "No rules found for resource type! resource=~a" resource-type)
-                            empty))))))))
+  (make-policy
+   (remove-duplicates
+    (flatten
+     (hash-map resources
+               (λ (resource-name resource-def)
+                 (define resource-type
+                   (string-replace (hash-ref resource-def 'Type) "::" "-"))
+                 (if (hash-has-key? rules resource-type)
+                     (let ([actions (remove-duplicates
+                                     (get-actions (hash-ref rules resource-type)
+                                                  resource-def))])
+                       (if (empty? actions) actions
+                           (make-statement actions)))
+                     (begin
+                       (log-warning "No rules found for resource type! resource=~a" resource-type)
+                       empty))))))))
 
 (module+ test
   (require rackunit)
 
-  (define (wrap-statements stmts)
-    (hash 'Version "2012-10-17"
-          'Statement stmts))
-
-  (define (wrap-permissions actions)
-    (hash 'Effect "Allow"
-          'Action actions
-          'Resource "*"))
-
-  (define EMPTY-POLICY (wrap-statements empty))
+  (define EMPTY-POLICY (make-policy empty))
 
   (define TEST-RULES
     (hash "AWS-Service-ResourceName"
@@ -144,9 +145,9 @@
                  (hash 'Resources
                        (hash "resourceName"
                              (hash 'Type "AWS::Service::ResourceName"))))
-                (wrap-statements
-                 (list (wrap-permissions (list "prefix:permission1"
-                                               "prefix:permission2")))))
+                (make-policy
+                 (list (make-statement (list "prefix:permission1"
+                                             "prefix:permission2")))))
 
 
   ;; Should build a policy with extra core permissions from an extended level
@@ -156,10 +157,10 @@
                        (hash "resourceName"
                              (hash 'Type "AWS::Service::ResourceName"
                                    'Properties (hash)))))
-                (wrap-statements
-                 (list (wrap-permissions (list "prefix:permission1"
-                                               "prefix:permission2"
-                                               "prefix:permission3")))))
+                (make-policy
+                 (list (make-statement (list "prefix:permission1"
+                                             "prefix:permission2"
+                                             "prefix:permission3")))))
 
   ;; Should build a policy with multiple levels of extended permissions.
   (check-equal? (build-policy
@@ -168,12 +169,12 @@
                        (hash "resourceName"
                              (hash 'Type "AWS::Service::ResourceName"
                                    'Properties (hash 'SomeServiceProperty (hash))))))
-                (wrap-statements
-                 (list (wrap-permissions (list "prefix:permission1"
-                                               "prefix:permission2"
-                                               "prefix:permission3"
-                                               "prefix:permission4"
-                                               "prefix:permission5")))))
+                (make-policy
+                 (list (make-statement (list "prefix:permission1"
+                                             "prefix:permission2"
+                                             "prefix:permission3"
+                                             "prefix:permission4"
+                                             "prefix:permission5")))))
 
   ;; Should build a policy with multiple statements for multiple resources.
   (check-equal? (build-policy
@@ -183,11 +184,11 @@
                              (hash 'Type "AWS::Service::ResourceName")
                              "secondResource"
                              (hash 'Type "AWS::Service::OtherResourceName"))))
-                (wrap-statements
-                 (list (wrap-permissions (list "prefix:permission1"
-                                               "prefix:permission2"))
-                       (wrap-permissions (list "other:other1"
-                                               "other:other2")))))
+                (make-policy
+                 (list (make-statement (list "prefix:permission1"
+                                             "prefix:permission2"))
+                       (make-statement (list "other:other1"
+                                             "other:other2")))))
 
   ;; Should build a policy correctly for resources that contain lists of items.
   (check-equal? (build-policy
@@ -197,11 +198,11 @@
                              (hash 'Type "AWS::Service::ListResource"
                                    'Properties (list (hash 'Name "")
                                                      (hash 'Something ""))))))
-                (wrap-statements
-                 (list (wrap-permissions (list "list:list1"
-                                               "list:list2"
-                                               "list:list3"
-                                               "list:list4")))))
+                (make-policy
+                 (list (make-statement (list "list:list1"
+                                             "list:list2"
+                                             "list:list3"
+                                             "list:list4")))))
 
   ;; Should not duplicate actions within a list
   (check-equal? (build-policy
@@ -211,10 +212,10 @@
                              (hash 'Type "AWS::Service::ListResource"
                                    'Properties (list (hash 'Name "")
                                                      (hash 'Name ""))))))
-                (wrap-statements
-                 (list (wrap-permissions (list "list:list1"
-                                               "list:list2"
-                                               "list:list3")))))
+                (make-policy
+                 (list (make-statement (list "list:list1"
+                                             "list:list2"
+                                             "list:list3")))))
 
   ;; Should not duplicate statements within a list
   (check-equal? (build-policy
@@ -224,21 +225,21 @@
                              (hash 'Type "AWS::Service::ResourceName")
                              "second"
                              (hash 'Type "AWS::Service::ResourceName"))))
-                (wrap-statements
-                 (list (wrap-permissions (list "prefix:permission1"
-                                               "prefix:permission2")))))
+                (make-policy
+                 (list (make-statement (list "prefix:permission1"
+                                             "prefix:permission2")))))
 
   ;; Should consolidate permissions for the same service into a single statement
   #;(check-equal? (build-policy
-                 TEST-RULES
-                 (hash 'Resources
-                       (hash "first"
-                             (hash 'Type "AWS::Service::ResourceName")
-                             "second"
-                             (hash 'Type "AWS::Service::ResourceName"
-                                   'Properties (hash)))))
-                (wrap-statements
-                 (list (wrap-permissions (list "prefix:permission1"
+                   TEST-RULES
+                   (hash 'Resources
+                         (hash "first"
+                               (hash 'Type "AWS::Service::ResourceName")
+                               "second"
+                               (hash 'Type "AWS::Service::ResourceName"
+                                     'Properties (hash)))))
+                  (make-policy
+                   (list (make-statement (list "prefix:permission1"
                                                "prefix:permission2"
                                                "prefix:permission3")))))
 
