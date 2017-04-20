@@ -20,6 +20,11 @@
 (define ALLOW-POST-HEADER
   (make-header #"Allow" #"POST"))
 
+(define RESPONSE-HEADERS
+  (list (make-header #"Access-Control-Allow-Origin" #"*")
+        (make-header #"Access-Control-Allow-Headers" #"Content-Type")
+        (make-header #"Access-Control-Allow-Methods" #"POST")))
+
 (define CONTENT-TYPE #"Content-Type")
 
 (define JSON-CONTENT-TYPE-HEADER
@@ -34,7 +39,7 @@
             #"Bad Request"
             (current-seconds)
             TEXT/HTML-MIME-TYPE
-            empty
+            RESPONSE-HEADERS
             identity))
 
 (define METHOD-NOT-ALLOWED
@@ -42,7 +47,8 @@
             #"Method Not Allowed"
             (current-seconds)
             TEXT/HTML-MIME-TYPE
-            (list ALLOW-POST-HEADER)
+            (append (list ALLOW-POST-HEADER)
+                    RESPONSE-HEADERS)
             identity))
 
 (define (good-response policy-hash)
@@ -50,7 +56,7 @@
             #"Ok"
             (current-seconds)
             APPLICATION/JSON
-            empty
+            RESPONSE-HEADERS
             (λ (op)
               (write-json policy-hash op))))
 
