@@ -16,6 +16,7 @@
 (define PUT #"PUT")
 (define PATCH #"PATCH")
 (define DELETE #"DELETE")
+(define OPTIONS #"OPTIONS")
 
 (define ALLOW-POST-HEADER
   (make-header #"Allow" #"POST"))
@@ -72,7 +73,9 @@
               (request-client-ip request)
               (request-headers request))
     (define body-str (bytes->string/utf-8 (request-post-data/raw request)))
-    (cond [(equal? (request-method request) POST)
+    (cond [(equal? (request-method request) OPTIONS)
+           (response 200 #"Ok" (current-seconds) TEXT/HTML-MIME-TYPE (list ALLOW-POST-HEADER) identity)]
+          [(equal? (request-method request) POST)
            (let ([content-type-header (headers-assq* CONTENT-TYPE (request-headers/raw request))])
              (if (header? content-type-header)
                  (let ([content-type (header-value content-type-header)])
@@ -118,6 +121,7 @@
   (define PUT-REQUEST (build-request #"PUT" empty #""))
   (define PATCH-REQUEST (build-request #"PATCH" empty #""))
   (define DELETE-REQUEST (build-request #"DELETE" empty #""))
+  (define OPTIONS-REQUEST (build-request #"OPTIONS" empty #""))
 
   (define (check-405 request)
     (define r (handle-request request))
@@ -138,6 +142,12 @@
 
     (test-case "DELETE should return 405 with correct Allow header"
       (check-405 DELETE-REQUEST))
+
+    (test-case "Should return 200 for OPTIONS with Allow Post"
+      (define r (handle-request OPTIONS-REQUEST))
+      (check-eq? (response-code r) 200)
+      (check-eq? (first (member ALLOW-POST-HEADER (response-headers r)))
+                 ALLOW-POST-HEADER))
 
     (test-case "Well-formed POST request should return 200"
       (define r (handle-request (build-request #"POST"
