@@ -18,13 +18,9 @@
 (define DELETE #"DELETE")
 (define OPTIONS #"OPTIONS")
 
-(define ALLOW-POST-HEADER
-  (make-header #"Allow" #"POST"))
-
-(define RESPONSE-HEADERS
-  (list (make-header #"Access-Control-Allow-Origin" #"*")
-        (make-header #"Access-Control-Allow-Headers" #"Content-Type")
-        (make-header #"Access-Control-Allow-Methods" #"POST")))
+(define ALLOW-HEADER (make-header #"Allow" #"POST, OPTIONS"))
+(define ALLOW-ORIGIN-HEADER (make-header #"Access-Control-Allow-Origin" #"*"))
+(define ALLOW-HEADERS-HEADER (make-header #"Access-Control-Allow-Headers" #"Content-Type"))
 
 (define CONTENT-TYPE #"Content-Type")
 
@@ -40,7 +36,7 @@
             #"Bad Request"
             (current-seconds)
             TEXT/HTML-MIME-TYPE
-            RESPONSE-HEADERS
+            empty
             identity))
 
 (define METHOD-NOT-ALLOWED
@@ -48,8 +44,7 @@
             #"Method Not Allowed"
             (current-seconds)
             TEXT/HTML-MIME-TYPE
-            (append (list ALLOW-POST-HEADER)
-                    RESPONSE-HEADERS)
+            (list ALLOW-HEADER)
             identity))
 
 (define (good-response policy-hash)
@@ -57,7 +52,7 @@
             #"Ok"
             (current-seconds)
             APPLICATION/JSON
-            RESPONSE-HEADERS
+            (list ALLOW-ORIGIN-HEADER)
             (λ (op)
               (write-json policy-hash op))))
 
@@ -72,17 +67,18 @@
               (request-host-ip request)
               (request-client-ip request)
               (request-headers request))
-    (define body-str (bytes->string/utf-8 (request-post-data/raw request)))
     (cond [(equal? (request-method request) OPTIONS)
            (response 200
                      #"Ok"
                      (current-seconds)
                      TEXT/HTML-MIME-TYPE
-                     (append (list ALLOW-POST-HEADER)
-                             RESPONSE-HEADERS)
+                     (list ALLOW-HEADER
+                           ALLOW-ORIGIN-HEADER
+                           ALLOW-HEADERS-HEADER)
                      identity)]
           [(equal? (request-method request) POST)
-           (let ([content-type-header (headers-assq* CONTENT-TYPE (request-headers/raw request))])
+           (let ([body-str (bytes->string/utf-8 (request-post-data/raw request))]
+                 [content-type-header (headers-assq* CONTENT-TYPE (request-headers/raw request))])
              (if (header? content-type-header)
                  (let ([content-type (header-value content-type-header)])
                    (cond [(equal? content-type APPLICATION/JSON)
@@ -123,17 +119,20 @@
              body
              "" 0 ""))
 
-  (define GET-REQUEST (build-request #"GET" empty #""))
-  (define PUT-REQUEST (build-request #"PUT" empty #""))
-  (define PATCH-REQUEST (build-request #"PATCH" empty #""))
-  (define DELETE-REQUEST (build-request #"DELETE" empty #""))
-  (define OPTIONS-REQUEST (build-request #"OPTIONS" empty #""))
+  (define GET-REQUEST (build-request #"GET" empty #f))
+  (define PUT-REQUEST (build-request #"PUT" empty #f))
+  (define PATCH-REQUEST (build-request #"PATCH" empty #f))
+  (define DELETE-REQUEST (build-request #"DELETE" empty #f))
+  (define OPTIONS-REQUEST (build-request #"OPTIONS" empty #f))
+
+  (define (assert-response-header response expected-header)
+    (check-equal? (first (member expected-header (response-headers response)))
+                  expected-header))
 
   (define (check-405 request)
     (define r (handle-request request))
     (check-eq? (response-code r) 405)
-    (check-eq? (first (member ALLOW-POST-HEADER (response-headers r)))
-               ALLOW-POST-HEADER))
+    (assert-response-header r ALLOW-HEADER))
 
   (define-test-suite test-http-responses
 
@@ -149,17 +148,19 @@
     (test-case "DELETE should return 405 with correct Allow header"
       (check-405 DELETE-REQUEST))
 
-    (test-case "Should return 200 for OPTIONS with Allow Post"
+    (test-case "OPTIONS should return 200 with correct CORS headers"
       (define r (handle-request OPTIONS-REQUEST))
       (check-eq? (response-code r) 200)
-      (check-eq? (first (member ALLOW-POST-HEADER (response-headers r)))
-                 ALLOW-POST-HEADER))
+      (assert-response-header r ALLOW-HEADER)
+      (assert-response-header r (make-header #"Access-Control-Allow-Origin" #"*"))
+      (assert-response-header r (make-header #"Access-Control-Allow-Headers" CONTENT-TYPE)))
 
-    (test-case "Well-formed POST request should return 200"
+    (test-case "Well-formed POST request should return 200 with correct CORS headers"
       (define r (handle-request (build-request #"POST"
                                                (list (make-header CONTENT-TYPE #"application/json"))
                                                #"{}")))
-      (check-eq? (response-code r) 200))
+      (check-eq? (response-code r) 200)
+      (assert-response-header r (make-header #"Access-Control-Allow-Origin" #"*")))
 
     (test-case "Should return 400 if content-type header is missing"
       (define r (handle-request (build-request #"POST"
