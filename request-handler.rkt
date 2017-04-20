@@ -74,7 +74,13 @@
               (request-headers request))
     (define body-str (bytes->string/utf-8 (request-post-data/raw request)))
     (cond [(equal? (request-method request) OPTIONS)
-           (response 200 #"Ok" (current-seconds) TEXT/HTML-MIME-TYPE (list ALLOW-POST-HEADER) identity)]
+           (response 200
+                     #"Ok"
+                     (current-seconds)
+                     TEXT/HTML-MIME-TYPE
+                     (append (list ALLOW-POST-HEADER)
+                             RESPONSE-HEADERS)
+                     identity)]
           [(equal? (request-method request) POST)
            (let ([content-type-header (headers-assq* CONTENT-TYPE (request-headers/raw request))])
              (if (header? content-type-header)
